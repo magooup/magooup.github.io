@@ -1,0 +1,100 @@
+extends layout
+
+block append scripts
+    script(src='/javascripts/marked.js')
+    script.
+        function edit(editing, e) {
+            var id = editing.getAttribute("id");
+            var index = parseInt(id.replace("edit-", ""));
+            var previewing = document.getElementById("preview-" + index);
+            if (e.keyCode == 8 || e.keyCode == 46) {
+                if (!editing.textContent) {
+                    if (editing.nextSibling) {
+                        moveEditRecursive(editing.nextSibling, -1);
+                    }
+                    editing.remove();
+                    previewing.remove();
+                }
+            } else if (e.keyCode == 13) {
+                //e.preventDefault();
+                var children = editing.getElementsByTagName("div");
+                if (children.length > 0) {
+                    if (editing.nextSibling) {
+                        moveEditRecursive(editing.nextSibling, children.length);
+                    }
+                    var editingNext = editing.nextSibling;
+                    var previewingNext = previewing.nextSibling;
+                    for (var i = 0; i < children.length; i++) {
+                        var child = children[i];
+                        var content = child.textContent;
+                        copyAttr(editing, child);
+                        child.setAttribute("id", "edit-" + (index + i + 1));
+                        editing.parentNode.insertBefore(child, editingNext);
+                        var previewNew = document.createElement("div");
+                        copyAttr(previewing, previewNew);
+                        previewNew.setAttribute("id", "preview-" + (index + i + 1));
+                        previewing.parentNode.insertBefore(previewNew, previewingNext);
+                        convert(child);
+                        child.focus();
+                    }
+                }
+
+                //var next = editing.nextSibling;
+                //if (next && next.getAttribute("id").indexOf("edit-") == 0) {
+                //    next.focus();
+                //} else {
+                //    next = document.createElement("div");
+                //    //alert(next);
+                //    //next.append()
+                //}
+            }
+            convert(editing);
+        }
+        function copyAttr(src, dst) {
+            var attrs = src.attributes;
+            for (var i = 0; i < attrs.length; i++) {
+                var attr = attrs[i];
+                dst.setAttribute(attr.name, attr.value);
+            }
+        }
+        function moveEditRecursive(cur, factor) {
+            if (cur.nextSibling) {
+                moveEditRecursive(cur.nextSibling, factor);
+            }
+            var id = cur.getAttribute("id");
+            var index = parseInt(id.replace("edit-", ""));
+            cur.setAttribute("id", "edit-" + (index + factor));
+            var previewing = document.getElementById("preview-" + index);
+            previewing.setAttribute("id", "preview-" + (index + factor));
+        }
+        function convert(editing) {
+            var id = editing.getAttribute("id");
+            var index = parseInt(id.replace("edit-", ""));
+            var previewingId = "preview-" + index;
+            document.getElementById(previewingId).innerHTML = marked(editing.textContent);
+        }
+        function locate() {
+            var clientHeight = document.documentElement.clientHeight;
+            var clientWidth = document.documentElement.clientWidth;
+            var halfWidth = (clientWidth - 100) / 2;
+            document.getElementById("editor").setAttribute("style", "width:" + halfWidth + "px;height:" + (clientHeight - 90) + "px")
+            document.getElementById("previewer").setAttribute("style", "width:" + halfWidth + "px" + ";left:" + (halfWidth + 40) + "px;height:" + (clientHeight - 90) + "px");
+            document.getElementById("main").setAttribute("style", "height:" + (clientHeight - 50) + "px");
+        }
+
+
+
+block head
+    div.head Editor
+
+block body
+    div.main#main
+        pre#editor
+            div#edit-1.edit(contenteditable=true onkeyup='edit(this,event)')
+        div#previewer
+            div#preview-1.preview Preview area
+        //- script
+        script locate(); document.body.onresize = locate;
+
+block foot
+    //-clear foot

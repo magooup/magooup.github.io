@@ -1,0 +1,61 @@
+body, html {
+    margin: 0px;
+    padding: 0px;
+}
+
+#main {
+    position: absolute;
+    left: 0px;
+    right: 0px;
+    top: 30px;
+}
+
+#editor {
+    left: 100px;
+}
+
+#previewer {
+    left: 200px;
+}
+
+#editor, #previewer {
+    border: solid 1px green;
+    display: inline-block;
+    position: absolute;
+    left: 0px;
+    margin: 10px;
+    padding: 10px;
+}
+
+.head {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    height: 30px;
+    border-bottom: dotted 1px gray;
+}
+
+.foot {
+    position: relative;
+    bottom: 0px;
+    left: 0px;
+    right: 0px;
+    height: 30px;
+    border-top: dotted 1px gray;
+}
+
+.edit {
+    border: none;
+    font-size: 15px;
+}
+
+.edit:focus {
+    outline: none;
+}
+
+.edit, .preview {
+    white-space: normal;
+    word-wrap: break-word;
+}
+
