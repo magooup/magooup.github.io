@@ -8,27 +8,57 @@ block append scripts
         }
         function paste(e) {
             e = e || window.event;
+            e.preventDefault();
             var text = e.clipboardData.getData('text/plain');
-            console.log(text);
+            var lines = text.split("\n");
             var editing = selectEditing();
             if (editing) {
-                var range = document.getSelection().getRangeAt(0);
-                range.collapse(false);
-                var node = range.createContextualFragment(text);
-                var c = node.lastChild;
-                range.insertNode(node);
-                if (c) {
-                    range.setEndAfter(c);
-                    range.setStartAfter(c)
+                //TODO: delete first
+
+                if (lines.length > 1) {
+                    if (editing.nextSibling) {
+                        moveEditRecursive(editing.nextSibling, lines.length - 1);
+                    }
+                    var offset = document.getSelection().anchorOffset;
+                    var textExtra = editing.textContent.substring(offset, editing.textContent.length);
+                    editing.textContent = editing.textContent.substring(0, offset) + lines[0];
+                    var index = editIndex(editing);
+                    var previewing = getPreview(index);
+                    for (var i = 1; i < lines.length - 1; i++) {
+                        var editNew = createEdit(index + i);
+                        editNew.textContent = lines[i];
+                        editing.parentNode.insertBefore(editNew, editing.nextSibling);
+                        var previewNew = createPreview(index + i);
+                        previewing.parentNode.insertBefore(previewNew, previewing.nextSibling)
+                        convert(editNew);
+                        editing = editNew;
+                    }
+                    var editLast = createEdit(index + lines.length - 1);
+                    editLast.textContent = textExtra;
+                    editing.parentNode.insertBefore(editLast, editing.nextSibling);
+                    var previewLast = createPreview(index + lines.length - 1);
+                    previewing.parentNode.insertBefore(previewLast, previewing.nextSibling)
+                    editing = editLast;
+                    text = lines[lines.length - 1];
+                    document.getSelection().collapse(editLast, 0);
+                }
+                var rangeCur = document.getSelection().getRangeAt(0);
+                rangeCur.collapse(false);
+                var textNodeNew = rangeCur.createContextualFragment(text);
+                var last = textNodeNew.lastChild;
+                rangeCur.insertNode(textNodeNew);
+                if (last) {
+                    rangeCur.setEndAfter(last);
+                    rangeCur.setStartAfter(last)
                 }
                 document.getSelection().removeAllRanges();
-                document.getSelection().addRange(range);
-
+                document.getSelection().addRange(rangeCur);
+                convert(editing);
+            } else {
                 //var offset = document.getSelection().anchorOffset;
                 //editing.textContent = editing.textContent.substring(0, offset) + text + editing.textContent.substring(offset, editing.textContent.length);
                 //document.getSelection().getRangeAt(0).startOffset = offset + text.length;
             }
-            e.preventDefault();
         }
         function edit(e) {
             e = e || window.event;
@@ -83,7 +113,7 @@ block append scripts
                     if (!previewing) {
                         previewing = createPreview(index + 1);
                         var previewingPre = getPreview(index);
-                        previewingPre.parentNode.insertBefore(previewing, previewingPre.nextSibling)
+                        previewingPre.parentNode.insertBefore(previewing, previewingPre.nextSibling);
                     }
                     convert(editing.previousSibling);
                 }
@@ -143,7 +173,7 @@ block append scripts
             }
         }
         function validEdit(node) {
-            return node && node.tagName.toLowerCase() == "div" && node.id && node.id.indexOf("edit-") == 0;
+            return node && node.tagName && node.tagName.toLowerCase() == "div" && node.id && node.id.indexOf("edit-") == 0;
         }
         function editIndex(edit) {
             return parseInt(edit.id.replace("edit-", ""));
