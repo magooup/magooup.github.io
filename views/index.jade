@@ -3,52 +3,109 @@ extends layout
 block append scripts
     script(src='/javascripts/marked.js')
     script.
-        function edit(editing, e) {
-            var id = editing.getAttribute("id");
-            var index = parseInt(id.replace("edit-", ""));
-            var previewing = document.getElementById("preview-" + index);
-            if (e.keyCode == 8 || e.keyCode == 46) {
-                if (!editing.textContent) {
-                    if (editing.nextSibling) {
-                        moveEditRecursive(editing.nextSibling, -1);
-                    }
-                    editing.remove();
-                    previewing.remove();
+        function copycut(e) {
+            e = e || window.event;
+        }
+        function paste(e) {
+            e = e || window.event;
+            var text = e.clipboardData.getData('text/plain');
+            console.log(text);
+            var editing = selectEditing();
+            if (editing) {
+                var range = document.getSelection().getRangeAt(0);
+                range.collapse(false);
+                var node = range.createContextualFragment(text);
+                var c = node.lastChild;
+                range.insertNode(node);
+                if (c) {
+                    range.setEndAfter(c);
+                    range.setStartAfter(c)
                 }
-            } else if (e.keyCode == 13) {
-                //e.preventDefault();
-                var children = editing.getElementsByTagName("div");
-                if (children.length > 0) {
-                    if (editing.nextSibling) {
-                        moveEditRecursive(editing.nextSibling, children.length);
-                    }
-                    var editingNext = editing.nextSibling;
-                    var previewingNext = previewing.nextSibling;
-                    for (var i = 0; i < children.length; i++) {
-                        var child = children[i];
-                        var content = child.textContent;
-                        copyAttr(editing, child);
-                        child.setAttribute("id", "edit-" + (index + i + 1));
-                        editing.parentNode.insertBefore(child, editingNext);
-                        var previewNew = document.createElement("div");
-                        copyAttr(previewing, previewNew);
-                        previewNew.setAttribute("id", "preview-" + (index + i + 1));
-                        previewing.parentNode.insertBefore(previewNew, previewingNext);
-                        convert(child);
-                        child.focus();
-                    }
-                }
+                document.getSelection().removeAllRanges();
+                document.getSelection().addRange(range);
 
-                //var next = editing.nextSibling;
-                //if (next && next.getAttribute("id").indexOf("edit-") == 0) {
-                //    next.focus();
-                //} else {
-                //    next = document.createElement("div");
-                //    //alert(next);
-                //    //next.append()
-                //}
+                //var offset = document.getSelection().anchorOffset;
+                //editing.textContent = editing.textContent.substring(0, offset) + text + editing.textContent.substring(offset, editing.textContent.length);
+                //document.getSelection().getRangeAt(0).startOffset = offset + text.length;
             }
-            convert(editing);
+            e.preventDefault();
+        }
+        function edit(e) {
+            e = e || window.event;
+            if (e.keyCode == 27 // ESC
+                    || (e.keyCode >= 112 && e.keyCode <= 123)//F1~F12
+                    || (e.keyCode >= 16 && e.keyCode <= 20) // shift/ctrl/alt/pause/caps-lock
+                    || (e.keyCode >= 33 && e.keyCode <= 36) // page-up/page-down/end/home
+                    || e.keyCode == 9 //tab
+                    || e.keyCode == 91//win
+                    || e.keyCode == 93//win-right
+                    || (e.keyCode >= 37 && e.keyCode <= 40) // left/up/right/down
+                    || e.keyCode == 144//num-lock
+                    || e.keyCode == 145//scroll-lock
+                    || e.keyCode == 45 //insert
+            ) {
+                return;
+            } else {
+                var editing = selectEditing();
+                if (!editing) {
+                    var editor = document.getElementById("editor");
+                    if (editor.getElementsByTagName("div").length == 0 || document.getElementsByClassName("edit") == 0) {
+                        editor.innerHTML = "<div id=\"edit-1\" class=\"edit\"></div>";
+                    }
+                    return;
+                }
+                var index = editIndex(editing);
+                if (e.keyCode == 8 || e.keyCode == 46) {//backspace/delete
+                    var expectNext = getEdit(index + 1);
+                    if (!expectNext) {
+                        var next = editing.nextSibling;
+                        var toDelMax = validEditIndex(next) - 1;
+                        if (toDelMax < 0) {
+                            toDelMax = maxIndex();
+                        }
+                        for (var i = index + 1; i <= toDelMax; i++) {
+                            var expectPreview = getPreview(i);
+                            if (expectPreview) {
+                                expectPreview.remove();
+                            }
+                        }
+                        if (editing.nextSibling) {
+                            moveEditRecursive(editing.nextSibling, index - toDelMax);
+                        }
+                    }
+                } else if (e.keyCode == 13) {
+                    var editingNext = editing.nextSibling;
+                    if (editingNext) {
+                        moveEditRecursive(editingNext, 1);
+                    }
+                    editing.setAttribute("id", "edit-" + (index + 1));
+                    var previewing = getPreview(index + 1);
+                    if (!previewing) {
+                        previewing = createPreview(index + 1);
+                        var previewingPre = getPreview(index);
+                        previewingPre.parentNode.insertBefore(previewing, previewingPre.nextSibling)
+                    }
+                    convert(editing.previousSibling);
+                }
+                convert(editing);
+            }
+        }
+        function maxIndex() {
+            var previewer = document.getElementById("previewer");
+            if (previewer.lastElementChild && previewer.lastElementChild.id && previewer.lastElementChild.id.indexOf("preview-") == 0) {
+                return parseInt(previewer.lastElementChild.id.replace("preview-", ""));
+            }
+            return -1;
+        }
+        function selectEditing() {
+            var editing = document.getSelection().anchorNode;
+            while (!(editing instanceof Element) && editing.parentNode) {
+                editing = editing.parentNode;
+            }
+            while (!validEdit(editing) && editing.parentNode) {
+                editing = editing.parentNode;
+            }
+            return validEdit(editing) ? editing : null;
         }
         function copyAttr(src, dst) {
             var attrs = src.attributes;
@@ -61,18 +118,61 @@ block append scripts
             if (cur.nextSibling) {
                 moveEditRecursive(cur.nextSibling, factor);
             }
-            var id = cur.getAttribute("id");
-            var index = parseInt(id.replace("edit-", ""));
+            var index = editIndex(cur);
             cur.setAttribute("id", "edit-" + (index + factor));
-            var previewing = document.getElementById("preview-" + index);
+            var previewing = getPreview(index);
             previewing.setAttribute("id", "preview-" + (index + factor));
         }
         function convert(editing) {
-            var id = editing.getAttribute("id");
-            var index = parseInt(id.replace("edit-", ""));
-            var previewingId = "preview-" + index;
-            document.getElementById(previewingId).innerHTML = marked(editing.textContent);
+            getPreview(editIndex(editing)).innerHTML = marked(editing.textContent);
         }
+        function convertAll() {
+            var editor = document.getElementById("editor");
+            var previewer = document.getElementById("previewer");
+            previewer.innerHTML = "";
+            var edits = document.getElementsByClassName("edit");
+            console.log(edits.length);
+            for (var i = 0; i < edits.length; i++) {
+                var edit = edits[i];
+                var index = validEditIndex(edit);
+                if (index > 0) {
+                    var preview = createPreview(index);
+                    previewer.appendChild(preview);
+                    convert(edit)
+                }
+            }
+        }
+        function validEdit(node) {
+            return node && node.tagName.toLowerCase() == "div" && node.id && node.id.indexOf("edit-") == 0;
+        }
+        function editIndex(edit) {
+            return parseInt(edit.id.replace("edit-", ""));
+        }
+        function validEditIndex(node) {
+            if (validEdit(node)) {
+                return editIndex(node);
+            }
+            return 0;
+        }
+        function getEdit(index) {
+            return document.getElementById("edit-" + index);
+        }
+        function createEdit(index) {
+            var div = document.createElement("div");
+            div.id = "edit-" + index;
+            div.setAttribute("class", "edit");
+            return div;
+        }
+        function getPreview(index) {
+            return document.getElementById("preview-" + index);
+        }
+        function createPreview(index) {
+            var div = document.createElement("div");
+            div.id = "preview-" + index;
+            div.setAttribute("class", "preview");
+            return div;
+        }
+
         function locate() {
             var clientHeight = document.documentElement.clientHeight;
             var clientWidth = document.documentElement.clientWidth;
@@ -89,12 +189,26 @@ block head
 
 block body
     div.main#main
-        pre#editor
-            div#edit-1.edit(contenteditable=true onkeyup='edit(this,event)')
+        pre#editor(contenteditable=true)
+            div#edit-1.edit
         div#previewer
             div#preview-1.preview Preview area
         //- script
-        script locate(); document.body.onresize = locate;
+        script.
+            locate(); document.body.onresize = locate;
+            var editor = document.getElementById("editor");
+            editor.onkeyup = edit;
+            editor.onpaste = paste;
+            editor.oncut = editor.oncopy = copycut;
+            editor.onblur = function () {
+                localStorage.setItem('editor', this.innerHTML);
+                //document.designMode = 'off';
+            }
+            if (localStorage.getItem('editor')) {
+                editor.innerHTML = localStorage.getItem('editor');
+                convertAll();
+            }
+            console.log(document.selection);
 
 block foot
     //-clear foot
