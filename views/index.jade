@@ -13,13 +13,17 @@ block append scripts
         function paste1(e) {
             e = e || window.event;
             var text = e.clipboardData.getData('text/plain');
-            console.log(text);
             var lines = text.split("\n");
             var selectedText = document.getSelection().toString();
             var selectedLineHeight = selectedText.split("\n").length;
+            var editing = selectEditing();
+            if (!editing) {
+                console.log("[ERR]: no editing focus");
+                return;
+            }
             if (selectedLineHeight > 1) {
-                var editing = selectEditing();
                 var index = editIndex(editing);
+                console.log("paste ori index: " + index);
                 for (var i = 1; i < selectedLineHeight; i++) {
                     var preview = getPreview(index + i);
                     if (preview) {
@@ -28,48 +32,57 @@ block append scripts
                 }
             }
             setTimeout(function () {
-                var editing = selectEditing();
                 console.log("pasted");
-                if (editing) {
-                    if (lines.length > 1) {
-                        if (editing.nextSibling) {
-                            moveEditRecursive(editing.nextSibling, lines.length - selectedLineHeight);
+                editing = selectEditing();
+                if (!editing) {
+                    console.log("[ERR]: no editing focus");
+                    return;
+                }
+
+                if (lines.length > 1) {
+                    if (editing.nextSibling) {
+                        moveEditRecursive(editing.nextSibling, lines.length - selectedLineHeight);
+                    }
+                    var curIndex = editIndex(editing);
+                    console.log("paste cur index: " + curIndex);
+                    var previewing = getPreview(curIndex);
+                    var editingNext = editing.nextSibling;
+                    var previewingNext = previewing.nextSibling;
+                    var childrenDivs = editing.getElementsByTagName("div");
+                    if (childrenDivs.length > 0) {
+                        console.log("Paste to child");
+                        editing.id = editing.id + "-del";
+                        console.log(editing);
+                        previewing.id = previewing.id + "-del";
+                        var i = 0;
+                        while (childrenDivs.length > 0) {
+                            var child = childrenDivs[0];
+                            child.id = "edit-" + (curIndex + i);
+                            console.log("paste new index: " + (curIndex + i));
+                            console.log(child);
+                            editing.parentNode.insertBefore(child, editingNext);
+                            var childPreview = createPreview(curIndex + i);
+                            previewing.parentNode.insertBefore(childPreview, previewingNext);
+                            convert(child);
+                            i++;
                         }
-                        var curIndex = editIndex(editing);
-                        var previewing = getPreview(curIndex);
-                        var editingNext = editing.nextSibling;
-                        var previewingNext = previewing.nextSibling;
-                        var childrenDivs = editing.getElementsByTagName("div");
-                        if (childrenDivs.length > 0) {
-                            editing.id = editing.id + "-del";
-                            previewing.id = previewing.id + "-del";
-                            var i = 0;
-                            while (childrenDivs.length > 0) {
-                                var child = childrenDivs[0];
-                                child.id = "edit-" + (curIndex + i);
-                                editing.parentNode.insertBefore(child, editingNext);
-                                var childPreview = createPreview(curIndex + i);
-                                previewing.parentNode.insertBefore(childPreview, previewingNext);
-                                convert(child);
-                                i++;
-                            }
-                            editing.remove();
-                            previewing.remove();
-                            if (editingNext && editingNext.previousSibling) {
-                                editing = editingNext.previousSibling;
-                            }
-                        } else {
-                            for (var i = lines.length - 1; i > 0; i--) {
-                                editing.id = "edit-" + (curIndex + i);
-                                var preview = createPreview(curIndex + i);
-                                previewing.parentNode.insertBefore(preview, previewing.nextSibling);
-                                convert(editing);
-                                editing = editing.previousSibling;
-                            }
+                        editing.remove();
+                        previewing.remove();
+                        if (editingNext && editingNext.previousSibling) {
+                            editing = editingNext.previousSibling;
+                        }
+                    } else {
+                        console.log("Paste to sibling");
+                        for (var i = lines.length - 1; i > 0; i--) {
+                            editing.id = "edit-" + (curIndex + i);
+                            var preview = createPreview(curIndex + i);
+                            previewing.parentNode.insertBefore(preview, previewing.nextSibling);
+                            convert(editing);
+                            editing = editing.previousSibling;
                         }
                     }
-                    convert(editing);
                 }
+                convert(editing);
             }, 10);
         }
         function paste2(e) {
@@ -142,7 +155,8 @@ block append scripts
             } else if (e.ctrlKey && (e.keyCode == 90 || e.keyCode == 89 || e.keyCode == 88)) {// ctrl+z/y/x
                 console.log("triggered 'ctrl+z/y'");
                 setTimeout(convertAll, 10);
-            } else {
+            } else if (e.keyCode != 8 && e.keyCode != 46) { // not backspace/delete
+                console.log("triggered keydown: remove selection");
                 var selectedText = document.getSelection().toString();
                 var selectedLineHeight = selectedText.split("\n").length;
                 if (selectedLineHeight > 1) {
@@ -189,10 +203,14 @@ block append scripts
                 if (e.keyCode == 8 || e.keyCode == 46) {//backspace/delete
                     var expectNext = getEdit(index + 1);
                     if (!expectNext) {
-                        var next = editing.nextSibling;
-                        var toDelMax = validEditIndex(next) - 1;
+                        var realNext = editing.nextSibling;
+                        var toDelMax = validEditIndex(realNext) - 1;
                         if (toDelMax < 0) {
                             toDelMax = maxIndex();
+                        }
+                        if (toDelMax < (index + 1)) {
+                            console.log("[ERR]: wrong order [" + (index + 1) + " - " + toDelMax + "]");
+                            toDelMax = index + 1;
                         }
                         for (var i = index + 1; i <= toDelMax; i++) {
                             var expectPreview = getPreview(i);
@@ -200,16 +218,9 @@ block append scripts
                                 expectPreview.remove();
                             }
                         }
-                        if (editing.nextSibling) {
-                            moveEditRecursive(editing.nextSibling, index - toDelMax);
-                        }
                     }
                 } else if (e.keyCode == 13) {
-                    var editingNext = editing.nextSibling;
-                    if (editingNext) {
-                        moveEditRecursive(editingNext, 1);
-                    }
-                    editing.setAttribute("id", "edit-" + (index + 1));
+                    editing.id = index + 1;
                     var previewing = getPreview(index + 1);
                     if (!previewing) {
                         previewing = createPreview(index + 1);
@@ -224,16 +235,18 @@ block append scripts
                             child.remove();
                         }
                     }
-                    convert(editing.previousSibling);
-                } else {
-                    var editingNext = editing.nextSibling;
-                    if (editingNext && validEdit(editingNext)) {
-                        var nextIndex = editIndex(editingNext);
-                        var offset = nextIndex - index;
-                        if (offset != 1) {
-                            console.log('keyup: fix next-sibling');
-                            moveEditRecursive(editingNext, (1 - offset));
-                        }
+                    if (editing.previousSibling) {
+                        convert(editing.previousSibling);
+                    }
+                }
+                index = editIndex(editing);
+                var editingNext = editing.nextSibling;
+                if (editingNext && validEdit(editingNext)) {
+                    var nextIndex = editIndex(editingNext);
+                    var offset = nextIndex - index;
+                    if (offset != 1) {
+                        console.log('keyup: fix next-sibling');
+                        moveEditRecursive(editingNext, (1 - offset));
                     }
                 }
                 convert(editing);
