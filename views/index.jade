@@ -2,7 +2,7 @@ extends layout
 
 block append scripts
     script(src='/javascripts/marked.js')
-    script(src='/javascripts/require.js')
+    script(src='/javascripts/ace.js')
     script.
 
         function keyup2(e) {
@@ -27,7 +27,7 @@ block append scripts
             }
         }
         function convert() {
-            getPreviewer().innerHTML = marked(getEditor().textContent);
+            getPreviewer().innerHTML = marked(getEditorContent());
         }
         function copyAttr(src, dst) {
             var attrs = src.attributes;
@@ -38,6 +38,9 @@ block append scripts
         }
         function getEditor() {
             return document.getElementById("editor");
+        }
+        function getEditorContent() {
+            return editor.getValue();
         }
         function getPreviewer(index) {
             return document.getElementById("previewer");
@@ -62,16 +65,22 @@ block body
         script.
             locate();
             document.body.onresize = locate;
-            var editor = document.getElementById("editor");
-            editor.onkeyup = keyup2;
-            editor.onblur = function () {
-                localStorage.setItem('editor', this.innerHTML);
+            var editor = ace.edit("editor");
+            editor.setShowPrintMargin(false);
+            //editor.setShowLineNumbers(false);
+            editor.setShowFoldWidgets(false);
+            editor.getSession().on('change', convert);
+
+            var editing = document.getElementById("editor");
+            editing.onblur = function () {
+                localStorage.setItem('editor', getEditorContent());
                 //document.designMode = 'off';
             }
             if (localStorage.getItem('editor')) {
-                editor.innerHTML = localStorage.getItem('editor');
-                convert();
+                if (localStorage.hasOwnProperty('editor')) {
+                    editor.setValue(localStorage.getItem('editor'));
+                    convert();
+                }
             }
-
 block foot
     //-clear foot
