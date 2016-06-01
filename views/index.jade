@@ -69,10 +69,7 @@ block body
             editor.setShowPrintMargin(false);
             //editor.setShowLineNumbers(false);
             editor.setShowFoldWidgets(false);
-            editor.onChange = function (delta) {
-                editor.onChange(delta);
-                convert();
-            }
+            editor.getSession().on('change', convert);
 
             var editing = document.getElementById("editor");
             editing.onblur = function () {
