@@ -2,7 +2,7 @@ extends layout
 
 block append scripts
     script(src='/javascripts/marked.js')
-    script(src='/javascripts/ace.js')
+    script(src='/javascripts/ace_free.js')
     script.
 
         function keyup2(e) {
@@ -69,7 +69,10 @@ block body
             editor.setShowPrintMargin(false);
             //editor.setShowLineNumbers(false);
             editor.setShowFoldWidgets(false);
-            editor.getSession().on('change', convert);
+            editor.onChange = function (delta) {
+                editor.onChange(delta);
+                convert();
+            }
 
             var editing = document.getElementById("editor");
             editing.onblur = function () {
