@@ -1,50 +1,18 @@
 extends layout
-
+block append styles
+    link(rel='stylesheet', href='/stylesheets/highlight_default.css')
 block append scripts
-    script(src='/javascripts/marked.js')
-    script(src='/javascripts/ace_free.js')
     script.
 
-        function keyup2(e) {
-            e = e || window.event;
-            if (e.keyCode == 27 // ESC
-                    || (e.keyCode >= 112 && e.keyCode <= 123)//F1~F12
-                    || (e.keyCode >= 16 && e.keyCode <= 20) // shift/ctrl/alt/pause/caps-lock
-                    || (e.keyCode >= 33 && e.keyCode <= 36) // page-up/page-down/end/home
-                    || e.keyCode == 9 //tab
-                    || e.keyCode == 91//win
-                    || e.keyCode == 93//win-right
-                    || (e.keyCode >= 37 && e.keyCode <= 40) // left/up/right/down
-                    || e.keyCode == 144//num-lock
-                    || e.keyCode == 145//scroll-lock
-                    || e.keyCode == 45 //insert
-                    || e.ctrlKey // ctrl+?
-                    || e.altKey // alt+?
-            ) {
-                return;
-            } else {
-                convert();
-            }
-        }
+        // convert source to marked, require 'marked'
         function convert() {
-            getPreviewer().innerHTML = marked(getEditorContent());
+            getPreviewer().innerHTML = marked(editor.getValue());
         }
-        function copyAttr(src, dst) {
-            var attrs = src.attributes;
-            for (var i = 0; i < attrs.length; i++) {
-                var attr = attrs[i];
-                dst.setAttribute(attr.name, attr.value);
-            }
-        }
-        function getEditor() {
-            return document.getElementById("editor");
-        }
-        function getEditorContent() {
-            return editor.getValue();
-        }
+        // get the previewer element
         function getPreviewer(index) {
             return document.getElementById("previewer");
         }
+        // locate the size
         function locate() {
             var clientHeight = document.documentElement.clientHeight;
             var clientWidth = document.documentElement.clientWidth;
@@ -53,33 +21,65 @@ block append scripts
             document.getElementById("previewer").setAttribute("style", "width:" + halfWidth + "px" + ";left:" + (halfWidth + 40) + "px;height:" + (clientHeight - 90) + "px");
             document.getElementById("main").setAttribute("style", "height:" + (clientHeight - 50) + "px");
         }
+        // code highlight, require 'highlight'
+        function code_highlight(code, lang, callback) {
+            if (hljs.getLanguage(lang)) {
+                return hljs.highlight(lang, code).value;
+            }
 
+            //console.log(lang);
+            //console.log(code);
+            //console.log(callback);
+            //console.log(hljs.highlight(lang, code, false, true).value);
+            //return code;
+        }
 block head
     div.head Editor
 
 block body
     div.main#main
-        pre#editor(contenteditable=true)
+        pre#editor
         div#previewer
         //- script
+        script(src='/javascripts/marked.js')
+        script(src='/javascripts/highlight.pack.js')
+        script(src='/javascripts/ace.js')
+        script(src='/javascripts/ace_mode_markdown.js')
         script.
+            /* locate */
             locate();
             document.body.onresize = locate;
+            /* marked */
+            marked.setOptions({
+                highlight: code_highlight
+            });
+            /* editor */
             var editor = ace.edit("editor");
-            editor.setShowPrintMargin(false);
+            editor.session.setMode("ace/mode/markdown")// set markdown mode
+            editor.setFontSize(15); // set font-size
+            editor.renderer.setShowGutter(false); // disable the line-numbers
+            editor.renderer.setPadding(10); // set padding=10
+            editor.session.setUseWrapMode(true); // use wrap mode, force warp line
+            //editor.setTheme("ace/theme/twilight");
+            editor.setShowPrintMargin(false); // disable the print-margin
             //editor.setShowLineNumbers(false);
-            editor.setShowFoldWidgets(false);
-            editor.getSession().on('change', convert);
+            editor.setShowFoldWidgets(false); // disable fold wigets
+            //editor.setShowInvisibles(true); // show invisible characters
+            editor.scrollToLine(0); // scroll to top
+            editor.$blockScrolling = Infinity; // disable warning message
+            editor.on('change', function (e) {
+                console.log('changed');
+                convert();
+                localStorage.setItem('editor', editor.getValue());
+            });
 
-            var editing = document.getElementById("editor");
-            editing.onblur = function () {
-                localStorage.setItem('editor', getEditorContent());
-                //document.designMode = 'off';
-            }
+            editor.on('scroll', function () {
+                console.log('scroll');
+            });
+            //
             if (localStorage.getItem('editor')) {
                 if (localStorage.hasOwnProperty('editor')) {
                     editor.setValue(localStorage.getItem('editor'));
-                    convert();
                 }
             }
 block foot
