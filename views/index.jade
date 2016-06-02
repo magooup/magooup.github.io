@@ -53,6 +53,8 @@ block body
             marked.setOptions({
                 highlight: code_highlight
             });
+            /** previewer */
+            var previewer = document.getElementById("previewer");
             /* editor */
             var editor = ace.edit("editor");
             editor.session.setMode("ace/mode/markdown")// set markdown mode
@@ -65,22 +67,24 @@ block body
             //editor.setShowLineNumbers(false);
             editor.setShowFoldWidgets(false); // disable fold wigets
             //editor.setShowInvisibles(true); // show invisible characters
-            editor.scrollToLine(0); // scroll to top
             editor.$blockScrolling = Infinity; // disable warning message
-            editor.on('change', function (e) {
-                console.log('changed');
+            editor.on('change', function (e) { // content-change event
                 convert();
                 localStorage.setItem('editor', editor.getValue());
             });
-
-            editor.on('scroll', function () {
-                console.log('scroll');
-            });
+            editor.session.on('changeScrollTop', function () { // scroll-top-change event
+                console.log('scroll change');
+                previewer.scrollTop = editor.session.getScrollTop();
+            })
             //
             if (localStorage.getItem('editor')) {
                 if (localStorage.hasOwnProperty('editor')) {
                     editor.setValue(localStorage.getItem('editor'));
                 }
             }
+            editor.scrollToLine(0); // scroll to top
+            editor.clearSelection(); // clear selection
+            editor.focus(); // focus
+            editor.moveCursorTo(0, 0); // move the cursor to top
 block foot
     //-clear foot
