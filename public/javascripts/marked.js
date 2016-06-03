@@ -158,7 +158,7 @@
         return lines.length;
     }
 
-    Lexer.prototype.token = function (src, top, bq) {
+    Lexer.prototype.token = function (src, top, bq, lns) { // add lns: line_no_start
         var next // MU: remove "src = src.replace(/^ +$/gm, ''),"
             , loose
             , cap
@@ -169,20 +169,23 @@
             , i
             , l;
 
-        var lineNo = 0; // MU: add lineNo and add lines to all tokens
-
+        var lineNo = !lns ? 0 : lns; // MU: add lineNo and add lines to all tokens
+        if (typeof lineNo !== 'number') {
+            throw new Error('lineNo is not a number.');
+        }
 
         while (src) {
+
             // newline
             if (cap = this.rules.newline.exec(src)) {
                 src = src.substring(cap[0].length);
                 if (cap[0].length > 1) {
                     this.tokens.push({
                         type: 'space',
-                        lines: top ? {
+                        lines: {
                             from: lineNo,
                             to: lineNo += this.countLine(cap[0])
-                        } : {}
+                        }
                     })
                     ;
                 }
@@ -197,10 +200,10 @@
                     text: !this.options.pedantic
                         ? cap.replace(/\n+$/, '')
                         : cap,
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 });
                 continue;
             }
@@ -212,10 +215,10 @@
                     type: 'code',
                     lang: cap[2],
                     text: cap[3] || '',
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 });
                 continue;
             }
@@ -227,10 +230,10 @@
                     type: 'heading',
                     depth: cap[1].length,
                     text: cap[2],
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 });
                 continue;
             }
@@ -244,10 +247,10 @@
                     header: cap[1].replace(/^ *| *\| *$/g, '').split(/ *\| */),
                     align: cap[2].replace(/^ *|\| *$/g, '').split(/ *\| */),
                     cells: cap[3].replace(/\n$/, '').split('\n'),
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 };
 
                 for (i = 0; i < item.align.length; i++) {
@@ -278,10 +281,10 @@
                     type: 'heading',
                     depth: cap[2] === '=' ? 1 : 2,
                     text: cap[1],
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 });
                 continue;
             }
@@ -291,10 +294,10 @@
                 src = src.substring(cap[0].length);
                 this.tokens.push({
                     type: 'hr',
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 });
                 continue;
             }
@@ -303,12 +306,11 @@
             if (cap = this.rules.blockquote.exec(src)) {
                 src = src.substring(cap[0].length);
 
+                var lineNoRec = lineNo;
+                lineNo += this.countLine(cap[0]);
+
                 this.tokens.push({
-                    type: 'blockquote_start',
-                    lines: top ? {
-                        from: lineNo,
-                        to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    type: 'blockquote_start'
                 });
 
                 cap = cap[0].replace(/^ *> ?/gm, '');
@@ -316,14 +318,10 @@
                 // Pass `top` to keep the current
                 // "toplevel" state. This is exactly
                 // how markdown.pl works.
-                this.token(cap, top, true);
+                this.token(cap, top, true, lineNoRec);
 
                 this.tokens.push({
-                    type: 'blockquote_end',
-                    lines: top ? {
-                        from: lineNo,
-                        to: lineNo
-                    } : {}
+                    type: 'blockquote_end'
                 });
 
                 continue;
@@ -332,15 +330,13 @@
             // list
             if (cap = this.rules.list.exec(src)) {
                 src = src.substring(cap[0].length);
+                var lineNoRec = lineNo;
+                lineNo += this.countLine(cap[0])
                 bull = cap[2];
 
                 this.tokens.push({
                     type: 'list_start',
-                    ordered: bull.length > 1,
-                    lines: top ? {
-                        from: lineNo,
-                        to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    ordered: bull.length > 1
                 });
 
                 // Get each top-level item.
@@ -393,7 +389,12 @@
                     });
 
                     // Recurse.
-                    this.token(item, false, bq);
+                    console.log(item);
+                    console.log(lineNoRec);
+                    this.token(item, false, bq, lineNoRec);
+                    //console.log(this.tokens.pop());
+                    //console.log(this.tokens.pop());
+                    lineNoRec += this.countLine(item);
 
                     this.tokens.push({
                         type: 'list_item_end'
@@ -402,10 +403,10 @@
 
                 this.tokens.push({
                     type: 'list_end',
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo
-                    } : {}
+                    }
                 });
 
                 continue;
@@ -421,10 +422,10 @@
                     pre: !this.options.sanitizer
                     && (cap[1] === 'pre' || cap[1] === 'script' || cap[1] === 'style'),
                     text: cap[0],
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 });
                 continue;
             }
@@ -435,10 +436,10 @@
                 this.tokens.links[cap[1].toLowerCase()] = {
                     href: cap[2],
                     title: cap[3],
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 };
                 continue;
             }
@@ -452,10 +453,10 @@
                     header: cap[1].replace(/^ *| *\| *$/g, '').split(/ *\| */),
                     align: cap[2].replace(/^ *|\| *$/g, '').split(/ *\| */),
                     cells: cap[3].replace(/(?: *\| *)?\n$/, '').split('\n'),
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 };
 
                 for (i = 0; i < item.align.length; i++) {
@@ -489,10 +490,10 @@
                     text: cap[1].charAt(cap[1].length - 1) === '\n'
                         ? cap[1].slice(0, -1)
                         : cap[1],
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 });
                 continue;
             }
@@ -504,10 +505,10 @@
                 this.tokens.push({
                     type: 'text',
                     text: cap[0],
-                    lines: top ? {
+                    lines: {
                         from: lineNo,
                         to: lineNo += this.countLine(cap[0])
-                    } : {}
+                    }
                 });
                 continue;
             }
@@ -839,7 +840,14 @@
         this.options = options || {};
     }
 
-    Renderer.prototype.code = function (code, lang, escaped) {
+    Renderer.prototype.rowAttr = function (row) {
+        if (row || 0 === row) {
+            return ' row_' + row;
+        }
+        return '';
+    }
+
+    Renderer.prototype.code = function (code, lang, escaped, row) {
         if (this.options.highlight) {
             var out = this.options.highlight(code, lang);
             if (out != null && out !== code) {
@@ -849,7 +857,7 @@
         }
 
         if (!lang) {
-            return '<pre><code>'
+            return '<pre' + this.rowAttr(row) + '><code>'
                 + (escaped ? code : escape(code, true))
                 + '\n</code></pre>';
         }
@@ -870,9 +878,10 @@
         return html;
     };
 
-    Renderer.prototype.heading = function (text, level, raw) {
+    Renderer.prototype.heading = function (text, level, raw, row) {
         return '<h'
             + level
+            + this.rowAttr(row)
             + ' id="'
             + this.options.headerPrefix
             + raw.toLowerCase().replace(/[^\w]+/g, '-')
@@ -883,8 +892,8 @@
             + '>\n';
     };
 
-    Renderer.prototype.hr = function () {
-        return this.options.xhtml ? '<hr/>\n' : '<hr>\n';
+    Renderer.prototype.hr = function (row) {
+        return this.options.xhtml ? '<hr' + this.rowAttr(row) + '/>\n' : '<hr>\n';
     };
 
     Renderer.prototype.list = function (body, ordered) {
@@ -892,16 +901,16 @@
         return '<' + type + '>\n' + body + '</' + type + '>\n';
     };
 
-    Renderer.prototype.listitem = function (text) {
-        return '<li>' + text + '</li>\n';
+    Renderer.prototype.listitem = function (text, row) {
+        return '<li' + this.rowAttr(row) + '>' + text + '</li>\n';
     };
 
-    Renderer.prototype.paragraph = function (text) {
-        return '<p>' + text + '</p>\n';
+    Renderer.prototype.paragraph = function (text, row) {
+        return '<p' + this.rowAttr(row) + '>' + text + '</p>\n';
     };
 
-    Renderer.prototype.table = function (header, body) {
-        return '<table>\n'
+    Renderer.prototype.table = function (header, body, row) {
+        return '<table' + this.rowAttr(row) + '>\n'
             + '<thead>\n'
             + header
             + '</thead>\n'
@@ -1051,8 +1060,8 @@
      */
 
     Parser.prototype.tok = function () {
-        console.log(this.token.type);
-        console.log(this.token.lines ? this.token.lines : null);
+        var row;
+        row = this.token.lines ? this.token.lines['from'] : undefined;
         switch (this.token.type) {
             case 'space':
             {
@@ -1060,20 +1069,20 @@
             }
             case 'hr':
             {
-                return this.renderer.hr();
+                return this.renderer.hr(row);
             }
             case 'heading':
             {
                 return this.renderer.heading(
                     this.inline.output(this.token.text),
                     this.token.depth,
-                    this.token.text);
+                    this.token.text, row);
             }
             case 'code':
             {
                 return this.renderer.code(this.token.text,
                     this.token.lang,
-                    this.token.escaped);
+                    this.token.escaped, row);
             }
             case 'table':
             {
@@ -1109,7 +1118,7 @@
 
                     body += this.renderer.tablerow(cell);
                 }
-                return this.renderer.table(header, body);
+                return this.renderer.table(header, body, row);
             }
             case 'blockquote_start':
             {
@@ -1140,9 +1149,13 @@
                     body += this.token.type === 'text'
                         ? this.parseText()
                         : this.tok();
+                    if (this.token.type === 'text') {
+                        row = this.token.lines ? this.token.lines['from'] : row;
+                    }
                 }
-
-                return this.renderer.listitem(body);
+                //console.log(body);
+                //console.log(row);
+                return this.renderer.listitem(body, row);
             }
             case 'loose_item_start':
             {
@@ -1152,7 +1165,7 @@
                     body += this.tok();
                 }
 
-                return this.renderer.listitem(body);
+                return this.renderer.listitem(body, row);
             }
             case 'html':
             {
@@ -1163,11 +1176,11 @@
             }
             case 'paragraph':
             {
-                return this.renderer.paragraph(this.inline.output(this.token.text));
+                return this.renderer.paragraph(this.inline.output(this.token.text), row);
             }
             case 'text':
             {
-                return this.renderer.paragraph(this.parseText());
+                return this.renderer.paragraph(this.parseText(), row);
             }
         }
     };

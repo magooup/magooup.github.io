@@ -76,15 +76,23 @@ block body
             });
             editor.session.on('changeScrollTop', function () { // scroll-top-change event
                 // console.log('scroll change');
-                previewer.scrollTop = editor.session.getScrollTop();
+                var ele;
+                var row = editor.getFirstVisibleRow() + 1;
+                while (!ele) {
+                    ele = previewer.querySelector('[row_' + row + ']');
+                    row--;
+                }
+                console.log(row);
+                console.log(ele);
+                previewer.scrollTop = ele.offsetTop;
             })
-            previewer.onscroll = function () {
-                //if (leftScrolling) {
-                //    return
-                //}
-                console.log("preview scrolling");
-                editor.session.setScrollTop(previewer.scrollTop);
-            }
+            /*previewer.onscroll = function () {
+             //if (leftScrolling) {
+             //    return
+             //}
+             console.log("preview scrolling");
+             editor.session.setScrollTop(previewer.scrollTop);
+             }*/
 
             //
             if (localStorage.getItem('editor')) {
