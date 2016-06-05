@@ -76,23 +76,54 @@ block body
             });
             editor.session.on('changeScrollTop', function () { // scroll-top-change event
                 // console.log('scroll change');
-                var ele;
                 var row = editor.getFirstVisibleRow() + 1;
-                while (!ele) {
+                var curEle = getLastRelRowEle(row);
+                var nextEle = getNextRelRowEle(row);
+                var offset = editor.renderer.getScrollTop() - editor.renderer.$cursorLayer.getPixelPosition({row: curEle.row}).top;
+                if (nextEle.e) {
+                    offset = Math.min(offset, nextEle.e.offsetTop - curEle.e.offsetTop);
+                }
+                offset = offset < 0 ? 0 : offset;
+                //console.log(curEle.row);
+                //console.log(nextEle.row);
+                //console.log(offset);
+                //console.log(ele);
+                previewer.scrollTop = curEle.e.offsetTop + offset;
+
+            })
+
+            previewer.onscroll = function () {
+                console.log("preview scrolling");
+                editor.scrollTop = previewer.scrollTop;
+                //editor.session.setScrollTop(previewer.scrollTop);
+            }
+            function findPreRow(head, tail) {
+                if (!head) {
+                    head = 0;
+                }
+                if (!tail) {
+                    tail = editor.session.getLength();
+                }
+
+            }
+            function getLastRelRowEle(row) {
+                var ele;
+                while (!ele && row >= 0) {
                     ele = previewer.querySelector('[row_' + row + ']');
                     row--;
                 }
-                console.log(row);
-                console.log(ele);
-                previewer.scrollTop = ele.offsetTop;
-            })
-            /*previewer.onscroll = function () {
-             //if (leftScrolling) {
-             //    return
-             //}
-             console.log("preview scrolling");
-             editor.session.setScrollTop(previewer.scrollTop);
-             }*/
+                return {e: ele, row: ++row};
+            }
+
+            function getNextRelRowEle(row) {
+                var ele;
+                row += 1;
+                while (!ele && row < editor.session.getLength()) {
+                    ele = previewer.querySelector('[row_' + row + ']');
+                    row++;
+                }
+                return {e: ele, row: --row};
+            }
 
             //
             if (localStorage.getItem('editor')) {
