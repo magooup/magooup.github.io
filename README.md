@@ -1,6 +1,6 @@
-# Version 1
- * basically edit and preview
- * without extra css style
- * without export interface: *origin text* or *preview html*
- * without `====` like support: multiline
- * without rich button
+# Version 3(not finish)
+ * To add more extra css styles
+ * To optimize javascript code
+ * To change project to simple html project
+ * To add export interface: *origin text* or *preview html*
+ * To add more rich buttons
