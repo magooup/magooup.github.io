@@ -389,8 +389,8 @@
                     });
 
                     // Recurse.
-                    console.log(item);
-                    console.log(lineNoRec);
+                    //console.log(item);
+                    //console.log(lineNoRec);
                     this.token(item, false, bq, lineNoRec);
                     //console.log(this.tokens.pop());
                     //console.log(this.tokens.pop());

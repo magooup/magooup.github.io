@@ -75,37 +75,100 @@ block body
                 localStorage.setItem('editor', editor.getValue());
             });
             editor.session.on('changeScrollTop', function () { // scroll-top-change event
-                // console.log('scroll change');
-                var row = editor.getFirstVisibleRow() + 1;
-                var curEle = getLastRelRowEle(row);
-                var nextEle = getNextRelRowEle(row);
-                var offset = editor.renderer.getScrollTop() - editor.renderer.$cursorLayer.getPixelPosition({row: curEle.row}).top;
-                if (nextEle.e) {
-                    offset = Math.min(offset, nextEle.e.offsetTop - curEle.e.offsetTop);
+                if (!window.e_s_timer) {
+                    window.e_s_timer = setTimeout(function () {
+                        try {
+                            if (window.p_s_timer) {
+                                return;
+                            }
+                            window.p_s_timer = 1;
+                            console.log("catch edit scrolling.");
+                            var vRow = editor.getFirstVisibleRow();
+                            var lastE = getLastRelRowEle(vRow);
+                            if (!lastE.e) {
+                                throw  new Error("Wrong lastE.");
+                            }
+                            var nextE = getNextRelRowEle(vRow);
+                            var pDis, eDis, eLast = editor.renderer.$cursorLayer.getPixelPosition({row: lastE.row}).top;
+                            if (!nextE.e) {
+                                pDis = previewer.scrollHeight - lastE.e.offsetTop;
+                                eDis = editor.renderer.$cursorLayer.getPixelPosition({row: editor.session.getLength() - 1}).top - eLast;
+                            } else {
+                                pDis = nextE.e.offsetTop - lastE.e.offsetTop;
+                                eDis = editor.renderer.$cursorLayer.getPixelPosition({row: nextE.row}).top - eLast;
+                            }
+                            if (pDis <= 0 || eDis <= 0) {
+                                throw new Error("Wrong Dis.");
+                            }
+                            var factor = pDis / eDis;
+                            var eOffset = editor.session.getScrollTop() - eLast;
+                            previewer.scrollTop = lastE.e.offsetTop + eOffset * factor;
+                        } finally {
+                            window.e_s_timer = undefined;
+                            setTimeout(function () {
+                                window.p_s_timer = 0;
+                            }, 100);
+                        }
+                    }, 100);
                 }
-                offset = offset < 0 ? 0 : offset;
-                //console.log(curEle.row);
-                //console.log(nextEle.row);
-                //console.log(offset);
-                //console.log(ele);
-                previewer.scrollTop = curEle.e.offsetTop + offset;
-
             })
 
             previewer.onscroll = function () {
-                console.log("preview scrolling");
-                editor.scrollTop = previewer.scrollTop;
+                if (!window.p_s_timer) {
+                    window.p_s_timer = setTimeout(function () {
+                        try {
+                            if (window.e_s_timer) {
+                                return;
+                            }
+                            window.e_s_timer = 1;
+                            console.log("catch preview scrolling.");
+                            var lastE = findPreingEle();
+                            if (!lastE.e) {
+                                throw  new Error("Wrong lastE.");
+                            }
+                            var nextE = getNextRelRowEle(lastE.row);
+                            var pDis, eDis, eLast = editor.renderer.$cursorLayer.getPixelPosition({row: lastE.row}).top;
+                            if (!nextE.e) {
+                                pDis = previewer.scrollHeight - lastE.e.offsetTop;
+                                eDis = editor.renderer.$cursorLayer.getPixelPosition({row: editor.session.getLength() - 1}).top - eLast;
+                            } else {
+                                pDis = nextE.e.offsetTop - lastE.e.offsetTop;
+                                eDis = editor.renderer.$cursorLayer.getPixelPosition({row: nextE.row}).top - eLast;
+                            }
+                            if (pDis <= 0 || eDis <= 0) {
+                                throw new Error("Wrong Dis.");
+                            }
+                            var factor = eDis / pDis;
+                            var pLast = lastE.e.offsetTop;
+                            var pOffset = previewer.scrollTop - pLast;
+                            editor.session.setScrollTop(eLast + pOffset * factor);
+                        } finally {
+                            window.p_s_timer = undefined;
+                            setTimeout(function () {
+                                window.e_s_timer = 0;
+                            }, 100);
+                        }
+                    }, 100);
+                }
+                //console.log("Caculate left: " + (editor.renderer.lineHeight * preingEle.row + offset) + "; offset " + offset + "; row at " + preingEle.row);
+
+                //editor.session.setScrollTop(editor.renderer.lineHeight*preingEle.row+offset);
                 //editor.session.setScrollTop(previewer.scrollTop);
             }
-            function findPreRow(head, tail) {
-                if (!head) {
-                    head = 0;
+            function findPreingEle() {
+                if (previewer.scrollTop === 0) {
+                    return {e: previewer.querySelector('[row_' + 0 + ']'), row: 0};
                 }
-                if (!tail) {
-                    tail = editor.session.getLength();
+                var cur = getNextRelRowEle(0);
+                while (cur.e) {
+                    var next = getNextRelRowEle(cur.row);
+                    if (next.e && next.e.offsetTop - 19 > previewer.scrollTop) {
+                        return cur;
+                    }
+                    cur = next;
                 }
-
             }
+
             function getLastRelRowEle(row) {
                 var ele;
                 while (!ele && row >= 0) {
