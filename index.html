@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Editor</title>
+    <link rel="stylesheet" href="res/styles/main.css">
+    <link rel="stylesheet" href="res/styles/highlight_default.css">
+</head>
+<body>
+<!-- head -->
+<div class="head">Editor v3</div>
+<!-- main -->
+<div id="main" class="main">
+    <div id="editor"></div>
+    <div id="previewer"></div>
+</div>
+<!-- foot -->
+<div class="foot"></div>
+<!-- scripts -->
+<script type="text/javascript" src="res/scripts/marked.js"></script>
+<script type="text/javascript" src="res/scripts/highlight.pack.js"></script>
+<script type="text/javascript" src="res/scripts/ace.js"></script>
+<script type="text/javascript" src="res/scripts/ace_mode_markdown.js"></script>
+<script type="text/javascript" src="res/scripts/ace_theme_dawn.js"></script>
+<script type="text/javascript" src="res/scripts/main.js"></script>
+<script type="text/javascript">
+    var editor = edit('editor', 'previewer');
+</script>
+</body>
+</html>
