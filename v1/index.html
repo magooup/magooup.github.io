@@ -1,0 +1,410 @@
+<html>
+    <head>
+        <link href="css/style.css" rel="stylesheet"/>
+        <script src="js/marked.js" type="text/javascript">
+        </script>
+        <script type="text/javascript">
+            function copycut1(e) {
+            e = e || window.event;
+            var text = document.getSelection().toString();
+            setTimeout(function () {
+                e.clipboardData.setData("text/plain", text);
+            }, 10);
+        }
+        function beforePaste1(e) {
+            e = e || window.event;
+            // wait for more operation
+        }
+        function paste1(e) {
+            e = e || window.event;
+            var text = e.clipboardData.getData('text/plain');
+            e.clipboardData.setData("text/plain", text);
+            var lines = text.split("\n");
+            var selectedText = document.getSelection().toString();
+            var selectedLineHeight = selectedText.split("\n").length;
+            var editing = selectEditing();
+            var index = editIndex(editing);
+            if (!editing) {
+                console.log("[ERR]: no editing focus");
+                return;
+            }
+            console.log("original: ");
+            console.log(editing);
+            if (selectedLineHeight > 1) {
+                for (var i = 1; i < selectedLineHeight; i++) {
+                    var preview = getPreview(index + i);
+                    if (preview) {
+                        preview.remove();
+                    }
+                }
+            }
+            setTimeout(function () {
+                console.log("pasted");
+                var editingNow = selectEditing();
+                if (!editingNow) {
+                    console.log("[ERR]: no editing focus");
+                    return;
+                }
+                console.log("now: ");
+                console.log(lines.length);
+                console.log(editingNow);
+                if (lines.length > 1) {
+                    var needConvertAll = false;
+                    var editingNowNext = editingNow.nextSibling;
+                    if (editingNowNext) {
+                        moveEditRecursive(editingNowNext, lines.length - selectedLineHeight);
+                    }
+                    var previewing = getPreview(index);
+                    var previewingNext = previewing.nextSibling;
+                    var childrenDivs = editingNow.getElementsByTagName("div");
+                    if (childrenDivs.length > 0) {
+                        console.log("Paste to child");
+                        editingNow.id = editingNow.id + "-del";
+                        if (editingNow != editing) {
+                            console.log("[WARN]: paste now not the origin");
+                            if (editingNow == editing.nextSibling) {
+                                editingNow.id = "edit-" + (index + 1);
+                                index = index + 1;
+                            } else {
+                                needConvertAll = true;
+                            }
+                        }
+                        var i = 0;
+                        while (childrenDivs.length > 0) {
+                            var child = childrenDivs[0];
+                            child.id = "edit-" + (index + i);
+                            editing.parentNode.insertBefore(child, editingNowNext);
+                            var childPreview = getPreview(index + i);
+                            if (!childPreview) {
+                                childPreview = createPreview(index + i);
+                                previewing.parentNode.insertBefore(childPreview, previewingNext);
+                            }
+                            convert(child);
+                            i++;
+                        }
+                        editingNow.remove();
+                        if (editingNowNext && editingNowNext.previousSibling) {
+                            editing = editingNowNext.previousSibling;
+                        }
+                    } else {
+                        console.log("Paste to sibling");
+                        for (var i = lines.length - 1; i > 0; i--) {
+                            editingNow.id = "edit-" + (index + i);
+                            var preview = createPreview(index + i);
+                            previewing.parentNode.insertBefore(preview, previewing.nextSibling);
+                            convert(editingNow);
+                            editingNow = editingNow.previousSibling;
+                        }
+                    }
+                    if (needConvertAll) {
+                        convertAll();
+                    }
+                }
+                convert(editing);
+            }, 10);
+        }
+        function paste2(e) {
+            e = e || window.event;
+            e.preventDefault();
+            var text = e.clipboardData.getData('text/plain');
+            var lines = text.split("\n");
+            var editing = selectEditing();
+            if (editing) {
+                if (lines.length > 1) {
+                    if (editing.nextSibling) {
+                        moveEditRecursive(editing.nextSibling, lines.length - 1);
+                    }
+                    var offset = document.getSelection().anchorOffset;
+                    var textExtra = editing.textContent.substring(offset, editing.textContent.length);
+                    editing.textContent = editing.textContent.substring(0, offset) + lines[0];
+                    convert(editing);
+                    var index = editIndex(editing);
+                    var previewing = getPreview(index);
+                    for (var i = 1; i < lines.length - 1; i++) {
+                        var editNew = createEdit(index + i);
+                        editNew.textContent = lines[i];
+                        editing.parentNode.insertBefore(editNew, editing.nextSibling);
+                        var previewNew = createPreview(index + i);
+                        previewing.parentNode.insertBefore(previewNew, previewing.nextSibling)
+                        convert(editNew);
+                        editing = editNew;
+                    }
+                    var editLast = createEdit(index + lines.length - 1);
+                    editLast.textContent = textExtra;
+                    editing.parentNode.insertBefore(editLast, editing.nextSibling);
+                    var previewLast = createPreview(index + lines.length - 1);
+                    previewing.parentNode.insertBefore(previewLast, previewing.nextSibling)
+                    editing = editLast;
+                    text = lines[lines.length - 1];
+                    document.getSelection().collapse(editLast, 0);
+                }
+                var rangeCur = document.getSelection().getRangeAt(0);
+                rangeCur.collapse(false);
+                var textNodeNew = rangeCur.createContextualFragment(text);
+                var last = textNodeNew.lastChild;
+                rangeCur.insertNode(textNodeNew);
+                if (last) {
+                    rangeCur.setEndAfter(last);
+                    rangeCur.setStartAfter(last)
+                }
+                document.getSelection().removeAllRanges();
+                document.getSelection().addRange(rangeCur);
+
+                convert(editing);
+            }
+        }
+        function keydown1(e) {
+            e = e || window.event;
+            if (e.keyCode == 27 // ESC
+                    || (e.keyCode >= 112 && e.keyCode <= 123)//F1~F12
+                    || (e.keyCode >= 16 && e.keyCode <= 20) // shift/ctrl/alt/pause/caps-lock
+                    || (e.keyCode >= 33 && e.keyCode <= 36) // page-up/page-down/end/home
+                    || e.keyCode == 9 //tab
+                    || e.keyCode == 91//win
+                    || e.keyCode == 93//win-right
+                    || (e.keyCode >= 37 && e.keyCode <= 40) // left/up/right/down
+                    || e.keyCode == 144//num-lock
+                    || e.keyCode == 145//scroll-lock
+                    || e.keyCode == 45 //insert
+                    || e.ctrlKey && e.keyCode != 90 && e.keyCode != 89 && e.keyCode != 88// ctrl+?(except ctrl+z/ctrl+y)
+                    || e.altKey // alt+?
+            ) {
+                return;
+            } else if (e.ctrlKey && (e.keyCode == 90 || e.keyCode == 89 || e.keyCode == 88)) {// ctrl+z/y/x
+                console.log("triggered 'ctrl+z/y'");
+                setTimeout(convertAll, 10);
+            } else if (e.keyCode != 8 && e.keyCode != 46) { // not backspace/delete
+                var selectedText = document.getSelection().toString();
+                var selectedLineHeight = selectedText.split("\n").length;
+                if (selectedLineHeight > 1) {
+                    console.log("triggered keydown: remove selection");
+                    var editing = selectEditing();
+                    var index = editIndex(editing);
+                    for (var i = 1; i < selectedLineHeight; i++) {
+                        var preview = getPreview(index + i);
+                        if (preview) {
+                            preview.remove();
+                        }
+                    }
+                }
+            }
+
+        }
+        function keyup1(e) {
+            e = e || window.event;
+            if (e.keyCode == 27 // ESC
+                    || (e.keyCode >= 112 && e.keyCode <= 123)//F1~F12
+                    || (e.keyCode >= 16 && e.keyCode <= 20) // shift/ctrl/alt/pause/caps-lock
+                    || (e.keyCode >= 33 && e.keyCode <= 36) // page-up/page-down/end/home
+                    || e.keyCode == 9 //tab
+                    || e.keyCode == 91//win
+                    || e.keyCode == 93//win-right
+                    || (e.keyCode >= 37 && e.keyCode <= 40) // left/up/right/down
+                    || e.keyCode == 144//num-lock
+                    || e.keyCode == 145//scroll-lock
+                    || e.keyCode == 45 //insert
+                    || e.ctrlKey // ctrl+?
+                    || e.altKey // alt+?
+            ) {
+                return;
+            } else {
+                var editing = selectEditing();
+                if (!editing) {
+                    var editor = getEditor();
+                    if (editor.getElementsByTagName("div").length == 0 || document.getElementsByClassName("edit").length == 0) {
+                        console.log("[WARN]: no focus on edit, will fix it.");
+                        editor.innerHTML = "<div id=\"edit-1\" class=\"edit\"></div>";
+                        document.getSelection().collapse(editor.children[0]);
+                    }
+                    return;
+                }
+                var index = editIndex(editing);
+                if (e.keyCode == 8 || e.keyCode == 46) {//backspace/delete
+                    var expectNext = getEdit(index + 1);
+                    if (!expectNext) {
+                        var realNext = editing.nextSibling;
+                        var toDelMax = validEditIndex(realNext) - 1;
+                        if (toDelMax < 0) {
+                            toDelMax = maxIndex();
+                        }
+                        if (toDelMax < (index + 1)) {
+                            console.log("[ERR]: wrong order [" + (index + 1) + " - " + toDelMax + "]");
+                            toDelMax = index + 1;
+                        }
+                        for (var i = index + 1; i <= toDelMax; i++) {
+                            var expectPreview = getPreview(i);
+                            if (expectPreview) {
+                                expectPreview.remove();
+                            }
+                        }
+                    }
+                    arrangeEditRecursive(editing);
+                } else if (e.keyCode == 13) {
+                    editing.id = "edit-" + (index + 1);
+                    arrangeEditRecursive(editing);
+                    var previewing = getPreview(index + 1);
+                    if (!previewing) {
+                        previewing = createPreview(index + 1);
+                        var previewingPre = getPreview(index);
+                        previewingPre.parentNode.insertBefore(previewing, previewingPre.nextSibling);
+                    }
+                    // clear child-divs
+                    var children = editing.children;
+                    for (var i = 0; i < children; i++) {
+                        var child = children[i];
+                        if (child.tagName && child.tagName.toLowerCase() == "div") {
+                            child.remove();
+                        }
+                    }
+                    if (editing.previousSibling) {
+                        convert(editing.previousSibling);
+                    }
+                } else {
+                    arrangeEditRecursive(editing);
+                }
+                convert(editing);
+            }
+        }
+        function getEditor() {
+            return document.getElementById("editor");
+        }
+        function arrangeEditRecursive(editing) {
+            var index = editIndex(editing);
+            var editingNext = editing.nextSibling;
+            if (editingNext && validEdit(editingNext)) {
+                var nextIndex = editIndex(editingNext);
+                var offset = nextIndex - index;
+                if (offset != 1) {
+                    console.log("Arrange edit : [" + index + "-" + nextIndex + "]");
+                    moveEditRecursive(editingNext, (1 - offset));
+                }
+            }
+        }
+        function maxIndex() {
+            var previewer = document.getElementById("previewer");
+            if (previewer.lastElementChild && previewer.lastElementChild.id && previewer.lastElementChild.id.indexOf("preview-") == 0) {
+                return parseInt(previewer.lastElementChild.id.replace("preview-", ""));
+            }
+            return -1;
+        }
+        function selectEditing() {
+            var editor = document.getElementById("editor");
+            var editing = document.getSelection().getRangeAt(0).startContainer;
+            while (editing.parentNode && editing.parentNode != editor) {
+                editing = editing.parentNode;
+            }
+            return validEdit(editing) ? editing : null;
+        }
+        function copyAttr(src, dst) {
+            var attrs = src.attributes;
+            for (var i = 0; i < attrs.length; i++) {
+                var attr = attrs[i];
+                dst.setAttribute(attr.name, attr.value);
+            }
+        }
+        function moveEditRecursive(cur, factor) {
+            if (cur.nextSibling && validEdit(cur.nextSibling)) {
+                moveEditRecursive(cur.nextSibling, factor);
+            }
+            var index = editIndex(cur);
+            cur.setAttribute("id", "edit-" + (index + factor));
+            var previewing = getPreview(index);
+            if (previewing) {
+                previewing.setAttribute("id", "preview-" + (index + factor));
+            }
+        }
+        function convert(editing) {
+            getPreview(editIndex(editing)).innerHTML = marked(editing.textContent);
+        }
+        function convertAll() {
+            var editor = document.getElementById("editor");
+            var previewer = document.getElementById("previewer");
+            previewer.innerHTML = "";
+            var children = editor.children;
+            var index = 1;
+            for (var i = 0; i < children.length; i++) {
+                var child = children[i];
+                if (validEdit(child)) {
+                    child.id = "edit-" + index;
+                    var preview = createPreview(index);
+                    previewer.appendChild(preview);
+                    convert(child);
+                    index++;
+                } else {
+                    child.remove();
+                }
+            }
+        }
+        function validEdit(node) {
+            return node && node.tagName && node.tagName.toLowerCase() == "div" && node.id && node.id.indexOf("edit-") == 0;
+        }
+        function editIndex(edit) {
+            return parseInt(edit.id.replace("edit-", ""));
+        }
+        function validEditIndex(node) {
+            if (validEdit(node)) {
+                return editIndex(node);
+            }
+            return 0;
+        }
+        function getEdit(index) {
+            return document.getElementById("edit-" + index);
+        }
+        function createEdit(index) {
+            var div = document.createElement("div");
+            div.id = "edit-" + index;
+            div.setAttribute("class", "edit");
+            return div;
+        }
+        function getPreview(index) {
+            return document.getElementById("preview-" + index);
+        }
+        function createPreview(index) {
+            var div = document.createElement("div");
+            div.id = "preview-" + index;
+            div.setAttribute("class", "preview");
+            return div;
+        }
+
+        function locate() {
+            var clientHeight = document.documentElement.clientHeight;
+            var clientWidth = document.documentElement.clientWidth;
+            var halfWidth = (clientWidth - 100) / 2;
+            document.getElementById("editor").setAttribute("style", "width:" + halfWidth + "px;height:" + (clientHeight - 90) + "px")
+            document.getElementById("previewer").setAttribute("style", "width:" + halfWidth + "px" + ";left:" + (halfWidth + 40) + "px;height:" + (clientHeight - 90) + "px");
+            document.getElementById("main").setAttribute("style", "height:" + (clientHeight - 50) + "px");
+        }
+        </script>
+    </head>
+    <body>
+        <div class="head">
+            Editor v1
+        </div>
+        <div class="main" id="main">
+            <pre contenteditable="true" id="editor"></pre>
+            <div id="previewer">
+                <div class="preview" id="preview-1">
+                    Previewing area
+                </div>
+            </div>
+        </div>
+        <script type="text/javascript">
+            locate(); document.body.onresize = locate;
+            var editor = document.getElementById("editor");
+            editor.onkeydown = keydown1;
+            editor.onkeyup = keyup1;
+            editor.onbeforepaste = beforePaste1;
+            editor.onpaste = paste1;
+            editor.oncut = copycut1;
+            editor.oncopy = copycut1;
+            editor.onblur = function () {
+                localStorage.setItem('editor', this.innerHTML);
+                //document.designMode = 'off';
+            }
+            if (localStorage.getItem('editor')) {
+                editor.innerHTML = localStorage.getItem('editor');
+                convertAll();
+            }
+        </script>
+    </body>
+</html>
